@@ -2,7 +2,6 @@ let
   pkgs_stable = import <nixos> { };
   pkgs = import <nixos-unstable> { };
   cxxopts = import ./cxxopts.nix; 
-  tracy = import ./tracy.nix;
   qcachegrind = pkgs.libsForQt5.callPackage ./qcachegrind.nix {};
   tbb = pkgs.tbb.overrideAttrs (old: rec {
     version = "2020_U3";
@@ -27,8 +26,8 @@ let
     src = pkgs.fetchFromGitLab {
       owner = "libeigen";
       repo = "eigen";
-      rev             = "28aef8e816faadc0e51afbfe3fa91f10f477535d";
-      sha256          = "151bkpn7pkmjglfn4kbdh442g94rjv33n13vy1fgzs9mpjlhmxj9";
+      rev    = "28aef8e816faadc0e51afbfe3fa91f10f477535d";
+      sha256 = "151bkpn7pkmjglfn4kbdh442g94rjv33n13vy1fgzs9mpjlhmxj9";
     };
     patches = [ ./eigen_include_dir.patch ];
   });
@@ -42,7 +41,6 @@ let
       rev    = "v${version}";
       sha256 = "19rnl4pq2mbh5hmj96cs309wxl51q5yyp364icg26zjm3d0ap834";
     };
-    #patches = [ ./pybind11_include.patch ];
   });
   ceres_trunk = pkgs.ceres-solver.overrideAttrs (old: rec {
     CFLAGS = (old.CFLAGS or "") + "-march=native -O3";
@@ -53,8 +51,8 @@ let
     src = pkgs.fetchFromGitHub {
       repo   = "ceres-solver";
       owner  = "ceres-solver";
-      rev    = "bb127272f9b57672bca48424f2d83bc430a46eb8";
-      sha256 = "169p6r44rqmlpzzkyjkxz9y6cx5w245d05gqjw0shx2ggcmdk72b";
+      rev    = "${version}";
+      sha256 = "05wpvz461kpbx221s1idsg5lx4hzz28lnnvrniygclrmr0d9s7xg";
     };
     enableParallelBuilding = true;
     cmakeFlags = [ "-DCMAKE_BUILD_TYPE=Release" "-DCXX11=ON" "-DTBB=ON" "-DOPENMP=OFF" "-DBUILD_SHARED_LIBS=ON -DBUILD_EXAMPLES=FALSE -DBUILD_TESTING=FALSE" ];
@@ -69,6 +67,18 @@ let
       "-DFMT_FUZZ=OFF"
     ];
   });
+  eli5 = import ./eli5.nix {
+    lib = pkgs.gcc10Stdenv.lib;
+    buildPythonPackage = pkgs.python38Packages.buildPythonPackage;
+    fetchPypi = pkgs.python38Packages.fetchPypi;
+    pythonPackages = pkgs.python38Packages;
+  };
+  pmlb = import ./pmlb.nix {
+    lib = pkgs.gcc10Stdenv.lib;
+    buildPythonPackage = pkgs.python38Packages.buildPythonPackage;
+    fetchPypi = pkgs.python38Packages.fetchPypi;
+    pythonPackages = pkgs.python38Packages;
+  };
 in
   pkgs.gcc10Stdenv.mkDerivation {
     name = "operon-env";
@@ -77,7 +87,7 @@ in
     buildInputs = with pkgs; [
         # python environment for bindings and scripting
         pybind11_trunk
-        (pkgs.python38.withPackages (ps: with ps; [ pip numpy scipy scikitlearn pandas sympy pyperf colorama coloredlogs seaborn cython jupyterlab ipywidgets grip livereload ]))
+        (pkgs.python38.withPackages (ps: with ps; [ pytest pip numpy scipy scikitlearn pandas sympy pyperf colorama coloredlogs seaborn cython jupyterlab ipywidgets grip livereload joblib graphviz ]))
         (pkgs_stable.python38.withPackages (ps: with ps; [ sphinx recommonmark sphinx_rtd_theme ]))
         # Project dependencies
         # profiling and debugging
@@ -110,5 +120,8 @@ in
         cxxopts
         #asciinema
         hyperfine
+        ninja
+        eli5
+        pmlb
       ];
     }

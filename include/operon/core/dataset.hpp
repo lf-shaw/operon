@@ -25,7 +25,7 @@
 #include <algorithm>
 #include <Eigen/Dense>
 #include <exception>
-#include <gsl/gsl_util>
+#include <gsl/util>
 #include <numeric>
 #include <vector>
 #include <optional>
@@ -85,6 +85,8 @@ public:
         }
         new (&map) Map(values.data(), values.rows(), values.cols()); // we use placement new (no allocation)
     }
+
+    Dataset(std::vector<std::vector<Operon::Scalar>> const& vals);
 
     Dataset(Eigen::Ref<Matrix const> ref);
 
