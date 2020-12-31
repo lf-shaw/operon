@@ -30,6 +30,7 @@
 #include "core/common.hpp"
 #include "core/format.hpp"
 #include "core/metrics.hpp"
+#include "core/version.hpp"
 #include "operators/creator.hpp"
 #include "operators/crossover.hpp"
 #include "operators/evaluator.hpp"
@@ -67,6 +68,7 @@ int main(int argc, char** argv)
         ("maxlength", "Maximum length", cxxopts::value<size_t>()->default_value("50"))
         ("maxdepth", "Maximum depth", cxxopts::value<size_t>()->default_value("10"))
         ("crossover-probability", "The probability to apply crossover", cxxopts::value<Operon::Scalar>()->default_value("1.0"))
+        ("crossover-internal-probability", "Crossover bias towards swapping function nodes", cxxopts::value<Operon::Scalar>()->default_value("0.9"))
         ("mutation-probability", "The probability to apply mutation", cxxopts::value<Operon::Scalar>()->default_value("0.25"))
         ("tree-creator", "Tree creator operator to initialize the population with.", cxxopts::value<std::string>())
         ("female-selector", "Female selection operator, with optional parameters separated by : (eg, --selector tournament:5)", cxxopts::value<std::string>())
@@ -78,11 +80,17 @@ int main(int argc, char** argv)
         ("show-primitives", "Display the primitive set used by the algorithm")
         ("threads", "Number of threads to use for parallelism", cxxopts::value<size_t>()->default_value("0"))
         ("debug", "Debug mode (more information displayed)")
-        ("help", "Print help");
+        ("help", "Print help")
+        ("version", "Print version and program information");
 
     auto result = opts.parse(argc, argv);
     if (result.arguments().empty() || result.count("help") > 0) {
         fmt::print("{}\n", opts.help());
+        exit(EXIT_SUCCESS);
+    }
+
+    if (result.count("version") > 0) {
+        fmt::print("{}\n", Version());
         exit(EXIT_SUCCESS);
     }
 
@@ -109,6 +117,7 @@ int main(int argc, char** argv)
 
     auto maxLength = result["maxlength"].as<size_t>();
     auto maxDepth = result["maxdepth"].as<size_t>();
+    auto crossoverInternalProbability = result["crossover-internal-probability"].as<Operon::Scalar>();
 
     try {
         for (auto kv : result.arguments()) {
@@ -258,7 +267,7 @@ int main(int argc, char** argv)
         auto initializer = Initializer { *creator, sizeDistribution };
         initializer.MinDepth(1);
         initializer.MaxDepth(1000);
-        auto crossover = SubtreeCrossover { 0.9, maxDepth, maxLength };
+        auto crossover = SubtreeCrossover { crossoverInternalProbability, maxDepth, maxLength };
         auto mutator = MultiMutation {};
         auto onePoint = OnePointMutation {};
         auto changeVar = ChangeVariableMutation { problem.InputVariables() };
@@ -426,7 +435,7 @@ int main(int argc, char** argv)
         Ind best(1);
 
         auto report = [&]() {
-            auto pop = gp.Parents();
+            auto const& pop = gp.Parents();
             best = getBest(pop);
 
             //fmt::print("best: {}\n", InfixFormatter::Format(best.Genotype, *dataset));
@@ -459,7 +468,7 @@ int main(int argc, char** argv)
 
             // calculate memory consumption
             size_t totalMemory = std::transform_reduce(std::execution::par_unseq, pop.begin(), pop.end(), size_t { 0 }, std::plus<> {}, getSize);
-            auto off = gp.Offspring();
+            auto const& off = gp.Offspring();
             totalMemory += std::transform_reduce(std::execution::par_unseq, off.begin(), off.end(), size_t { 0 }, std::plus<> {}, getSize);
 
             fmt::print("{:.4f}\t{}\t", elapsed, gp.Generation());

@@ -1,8 +1,8 @@
 /* This file is part of:
  * Operon - Large Scale Genetic Programming Framework
  *
- * Licensed under the ISC License <https://opensource.org/licenses/ISC> 
- * Copyright (C) 2019 Bogdan Burlacu 
+ * Licensed under the ISC License <https://opensource.org/licenses/ISC>
+ * Copyright (C) 2019 Bogdan Burlacu
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,21 +14,55 @@
  * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
  * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE. 
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
 #ifndef EVALUATOR_HPP
 #define EVALUATOR_HPP
 
-#include "core/eval.hpp"
-#include "core/nnls.hpp"
-#include "core/nnls_tiny.hpp"
 #include "core/metrics.hpp"
 #include "core/operator.hpp"
+#include "core/types.hpp"
+#include "nnls/nnls.hpp"
 #include "stat/meanvariance.hpp"
 #include "stat/pearson.hpp"
 
 namespace Operon {
+
+class UserDefinedEvaluator : public EvaluatorBase {
+public:
+    UserDefinedEvaluator(Problem& problem, std::function<typename EvaluatorBase::ReturnType(Operon::RandomGenerator&, Operon::Individual&)> && func)
+        : EvaluatorBase(problem), fref(std::move(func))
+    {
+    }
+
+    UserDefinedEvaluator(Problem& problem, std::function<typename EvaluatorBase::ReturnType(Operon::RandomGenerator&, Operon::Individual&)> const& func)
+        : EvaluatorBase(problem), fref(func)
+    {
+    }
+
+    // the func signature taking a pointer to the rng is a workaround for pybind11, since the random generator is non-copyable we have to pass a pointer
+    UserDefinedEvaluator(Problem& problem, std::function<typename EvaluatorBase::ReturnType(Operon::RandomGenerator*, Operon::Individual&)> && func)
+        : EvaluatorBase(problem), fptr(std::move(func))
+    {
+    }
+
+    UserDefinedEvaluator(Problem& problem, std::function<typename EvaluatorBase::ReturnType(Operon::RandomGenerator*, Operon::Individual&)> const& func)
+        : EvaluatorBase(problem), fptr(func)
+    {
+    }
+
+    typename EvaluatorBase::ReturnType
+    operator()(Operon::RandomGenerator& rng, Individual& ind) const override
+    {
+        return fptr ? fptr(&rng, ind) : fref(rng, ind);
+    }
+
+private:
+    std::function<typename EvaluatorBase::ReturnType(Operon::RandomGenerator&, Operon::Individual&)> fref;
+    std::function<typename EvaluatorBase::ReturnType(Operon::RandomGenerator*, Operon::Individual&)> fptr; // workaround for pybind11
+};
+
 class MeanSquaredErrorEvaluator : public EvaluatorBase {
 public:
     static constexpr Operon::Scalar LowerBound = 0.0;
@@ -51,8 +85,8 @@ public:
         auto targetValues = dataset.GetValues(problem_.TargetVariable()).subspan(trainingRange.Start(), trainingRange.Size());
 
         if (this->iterations > 0) {
-            auto summary = OptimizeAutodiff(genotype, dataset, targetValues, trainingRange, this->iterations);
-            this->localEvaluations += summary.iterations.size();
+            auto summary = Optimize(genotype, dataset, targetValues, trainingRange, this->iterations);
+            this->localEvaluations += summary.Iterations;
         }
 
         auto estimatedValues = Evaluate<Operon::Scalar>(genotype, dataset, trainingRange);
@@ -87,8 +121,8 @@ public:
         auto targetValues = dataset.GetValues(problem_.TargetVariable()).subspan(trainingRange.Start(), trainingRange.Size());
 
         if (this->iterations > 0) {
-            auto summary = OptimizeAutodiff(genotype, dataset, targetValues, trainingRange, this->iterations);
-            this->localEvaluations += summary.iterations.size();
+            auto summary = Optimize(genotype, dataset, targetValues, trainingRange, this->iterations);
+            this->localEvaluations += summary.Iterations;
         }
 
         auto estimatedValues = Evaluate<Operon::Scalar>(genotype, dataset, trainingRange);
@@ -135,15 +169,13 @@ public:
         auto targetValues = dataset.GetValues(problem.TargetVariable()).subspan(trainingRange.Start(), trainingRange.Size());
 
         if (this->iterations > 0) {
-            auto summary = OptimizeAutodiff(genotype, dataset, targetValues, trainingRange, this->iterations);
-            this->localEvaluations += summary.iterations.size();
+            auto summary = Optimize(genotype, dataset, targetValues, trainingRange, this->iterations);
+            this->localEvaluations += summary.Iterations;
         }
 
         auto estimatedValues = Evaluate<Operon::Scalar>(genotype, dataset, trainingRange);
         PearsonsRCalculator calculator;
-        for (size_t i = 0; i < estimatedValues.size(); ++i) {
-            calculator.Add(estimatedValues[i], targetValues[i]);
-        }
+        calculator.Add(gsl::span<Operon::Scalar const>(estimatedValues), targetValues);
         auto varX = calculator.NaiveVarianceX();
         if (varX < 1e-12) {
             // this is done to avoid numerical issues when a constant model

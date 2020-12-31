@@ -17,6 +17,7 @@
  * PERFORMANCE OF THIS SOFTWARE. 
  */
 
+#include <core/node.hpp>
 #include <pybind11/eigen.h>
 #include <pybind11/functional.h>
 #include <pybind11/numpy.h>
@@ -31,7 +32,6 @@
 #include "core/common.hpp"
 #include "core/constants.hpp"
 #include "core/dataset.hpp"
-#include "core/eval.hpp"
 #include "core/format.hpp"
 #include "core/individual.hpp"
 #include "core/pset.hpp"
@@ -40,7 +40,6 @@
 
 #include "operators/creator.hpp"
 #include "operators/crossover.hpp"
-#include "operators/evaluator.hpp"
 #include "operators/generator.hpp"
 #include "operators/initializer.hpp"
 #include "operators/mutation.hpp"
@@ -52,11 +51,29 @@
 namespace py = pybind11;
 
 // enable pass-by-reference semantics for this vector type
-PYBIND11_MAKE_OPAQUE(std::vector<Operon::Variable>)
-PYBIND11_MAKE_OPAQUE(std::vector<Operon::Individual>)
+PYBIND11_MAKE_OPAQUE(std::vector<Operon::Variable>);
+PYBIND11_MAKE_OPAQUE(std::vector<Operon::Individual>);
 
 using UniformInitializer          = Operon::Initializer<std::uniform_int_distribution<size_t>>;
 using GeneticProgrammingAlgorithm = Operon::GeneticProgrammingAlgorithm<UniformInitializer>;
+
+template<typename T>
+py::array_t<T const> MakeView(gsl::span<T const> view)
+{
+    auto sz = static_cast<pybind11::ssize_t>(view.size());
+    py::array_t<T const> arr(sz, view.data(), py::capsule(view.data()));
+    ENSURE(arr.owndata() == false);
+    ENSURE(arr.data() == view.data());
+    return arr;
+}
+
+template<typename T>
+gsl::span<T> MakeSpan(py::array_t<T> arr)
+{
+    py::buffer_info info = arr.request();
+    using size_type = gsl::span<const Operon::Scalar>::size_type;
+    return gsl::span<T>(static_cast<T*>(info.ptr), static_cast<size_type>(info.size));
+}
 
 void init_algorithm(py::module_&);
 void init_creator(py::module_&);

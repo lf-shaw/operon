@@ -1,4 +1,3 @@
-
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -6,20 +5,11 @@
 #include <gsl/span>
 #include <stat/linearscaler.hpp>
 
-#include "core/metrics.hpp"
-#include "core/eval.hpp"
+#include "operators/evaluator.hpp"
 
 #include "operon.hpp"
 
 namespace py = pybind11;
-
-template<typename T> 
-gsl::span<T> MakeSpan(py::array_t<T> arr)
-{
-    py::buffer_info info = arr.request();
-    using size_type = gsl::span<const Operon::Scalar>::size_type;
-    return gsl::span<T>(static_cast<T*>(info.ptr), static_cast<size_type>(info.size));
-}
 
 void init_eval(py::module_ &m)
 {
@@ -125,4 +115,7 @@ void init_eval(py::module_ &m)
         .def(py::init<Operon::Problem&>())
         .def("__call__", &Operon::NormalizedMeanSquaredErrorEvaluator::operator());
 
+    py::class_<Operon::UserDefinedEvaluator, Operon::EvaluatorBase>(m, "UserDefinedEvaluator")
+        .def(py::init<Operon::Problem&, std::function<typename Operon::EvaluatorBase::ReturnType(Operon::RandomGenerator*, Operon::Individual&)> const&>())
+        .def("__call__", &Operon::UserDefinedEvaluator::operator());
 }

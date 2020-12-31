@@ -29,9 +29,6 @@ namespace Operon {
 
 // internal implementation details
 namespace {
-    // compare strings size first, as an attempt to have eg X1, X2, X10 in this order and not X1, X10, X2
-    const auto compareWithSize = [](auto& lhs, auto& rhs) { return std::tuple(lhs.size(), lhs) < std::tuple(rhs.size(), rhs); };
-
     const auto defaultVariables = [](size_t count) {
         Hasher<HashFunction::XXHash> hash;
 
@@ -204,7 +201,7 @@ void Dataset::Standardize(size_t i, Range range)
     auto vals = gsl::span<const Operon::Scalar>(seg.data(), range.Size());
     calc.Add(vals);
 
-    values.col(j) = (values.col(j).array() - calc.Mean()) / calc.StandardDeviation();
+    values.col(j) = (values.col(j).array() - calc.Mean()) / calc.NaiveStandardDeviation();
 }
 } // namespace Operon
 

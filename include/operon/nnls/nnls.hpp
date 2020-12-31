@@ -2,7 +2,7 @@
  * Operon - Large Scale Genetic Programming Framework
  *
  * Licensed under the ISC License <https://opensource.org/licenses/ISC> 
- * Copyright (C) 2020 Bogdan Burlacu 
+ * Copyright (C) 2019 Bogdan Burlacu 
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,15 +17,27 @@
  * PERFORMANCE OF THIS SOFTWARE. 
  */
 
-#ifndef OPERON_COMMON_HPP
-#define OPERON_COMMON_HPP
+#ifndef OPERON_NNLS_HPP
+#define OPERON_NNLS_HPP
 
-#include "constants.hpp"
-#include "contracts.hpp"
-#include "types.hpp"
-#include "buildinfo.hpp"
+#include "core/types.hpp"
+#include "tiny_optimizer.hpp"
+
+#if defined(HAVE_CERES)
+#include "ceres_optimizer.hpp"
+#endif
 
 namespace Operon {
+
+OptimizerSummary Optimize(Tree& tree, Dataset const& dataset, const gsl::span<const Operon::Scalar> targetValues, Range const range, size_t iterations = 50, bool writeCoefficients = true, bool report = false) {
+#if defined(CERES_TINY_SOLVER) || !defined(HAVE_CERES)
+    Optimizer<DerivativeMethod::AUTODIFF, OptimizerType::TINY> optimizer;
+#else
+    Optimizer<DerivativeMethod::AUTODIFF, OptimizerType::CERES> optimizer;
+#endif
+    return optimizer.Optimize(tree, dataset, targetValues, range, iterations, writeCoefficients, report);
+}
 }
 
 #endif
+
